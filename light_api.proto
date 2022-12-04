@@ -1,0 +1,100 @@
+syntax ="proto3";
+
+package api;
+
+// client request
+message Request{
+  oneof request{
+    Hget hget = 1;
+    Hset hset = 2;
+    Hdel hdel = 3;
+    Hgetall hgetall = 4;
+    Hmget hmget = 5;
+    Hmset hmset = 6;
+    Hmdel hmdel = 7;
+    Hexists hexists = 8;
+    Hmexists hmexists = 9;
+  }
+}
+
+// server response
+message Response{
+  // status code
+  uint32 status = 1;
+  // response message
+  string message = 2;
+  // response value data
+  repeated Value values=3;
+  // response kv pairs
+  repeated KvPair pairs=4;
+}
+
+// get value form specify hash table
+message Hget{
+  string table = 1;
+  string key = 2;
+}
+
+// set a kv pair to specify hash table
+message Hset{
+  string table = 1;
+  KvPair pair= 2;
+}
+
+// delete a kv pair from specify hash table
+message Hdel{
+  string table = 1;
+  string key = 2;
+}
+
+// get all kv pairs from specify hash table
+message Hgetall{
+  string table = 1;
+}
+
+// get multiple kv pairs from specify hash table
+message Hmget{
+  string table = 1;
+  repeated string keys = 2;
+}
+
+// set multiple kv pairs to specify hash table
+message Hmset{
+  string table = 1;
+  repeated KvPair pairs = 2;
+}
+
+// delete multiple kv pairs from specify hash table
+message Hmdel{
+  string table = 1;
+  repeated string keys = 2;
+}
+
+// check if a kv pair exists in specify hash table
+message Hexists{
+  string table = 1;
+  string key = 2;
+}
+
+// check if multiple kv pairs exists in specify hash table
+message Hmexists{
+  string table = 1;
+  repeated string keys = 2;
+}
+
+// kv pair value
+message Value{
+  oneof value{
+    string string = 1;
+    bytes binary = 2;
+    int64 integer = 3;
+    double float = 4;
+    bool bool = 5;
+  }
+}
+
+// kv pair
+message KvPair{
+  string key = 1;
+  Value value = 2;
+}
