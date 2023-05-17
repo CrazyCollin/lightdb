@@ -1,1 +1,4 @@
 # lightkv
+
+## Architecture
+

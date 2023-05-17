@@ -1,8 +1,10 @@
 use crate::data::log_record::LogRecordPos;
-use crate::index::Indexer;
+use crate::index::{Index, IndexIterator};
 use parking_lot::RwLock;
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use bytes::Bytes;
+use crate::options::IteratorOptions;
 
 pub struct BTreeIndex {
     index: Arc<RwLock<BTreeMap<Vec<u8>, LogRecordPos>>>,
@@ -16,7 +18,7 @@ impl BTreeIndex {
     }
 }
 
-impl Indexer for BTreeIndex {
+impl Index for BTreeIndex {
     fn put(&self, key: Vec<u8>, pos: LogRecordPos) -> bool {
         let mut write_guard = self.index.write();
         write_guard.insert(key, pos);
@@ -33,14 +35,58 @@ impl Indexer for BTreeIndex {
         let res = write_guard.remove(&key);
         res.is_some()
     }
+
+    fn list_keys(&self) -> Option<Vec<Bytes>> {
+        let read_guard=self.index.read();
+        let mut keys=Vec::with_capacity(read_guard.len());
+        for (item,_) in read_guard.iter() {
+            keys.push(Bytes::copy_from_slice(item));
+        }
+        Some(keys)
+    }
+
+    fn iterator(&self, options: IteratorOptions) -> Box<dyn IndexIterator> {
+        let read_guard=self.index.read();
+        let mut items=Vec::with_capacity(read_guard.len());
+        for (key, value) in read_guard.iter() {
+            items.push((key.clone(),value.clone()));
+        }
+        if options.reverse {
+            items.reverse();
+        }
+        Box::new(BTreeIndexIterator{
+            items,
+            index: 0,
+            options,
+        })
+    }
+}
+
+pub struct BTreeIndexIterator{
+    items:Vec<(Vec<u8>,LogRecordPos)>,
+    index:usize,
+    options:IteratorOptions,
+}
+
+impl IndexIterator for BTreeIndexIterator {
+    fn rewind(&mut self) {
+        self.index=0;
+    }
+
+    fn seek(&mut self, key: Vec<u8>) {
+
+    }
+
+    fn next(&mut self) -> Option<(Vec<u8>, LogRecordPos)> {
+        todo!()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::data::log_record::LogRecordPos;
     use crate::index::btree::BTreeIndex;
-    use crate::index::Indexer;
-    use std::ops::Index;
+    use crate::index::Index;
 
     #[test]
     fn test_put() {
@@ -159,4 +205,6 @@ mod tests {
         let del_res2 = btree_index.delete("test-3".into());
         assert!(del_res2);
     }
+
+
 }
