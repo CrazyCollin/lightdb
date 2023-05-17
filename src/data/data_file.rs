@@ -13,4 +13,6 @@ pub struct DataFile {
     io_manager: Box<dyn IOManager>,
 }
 
-impl DataFile {}
+impl DataFile {
+    
+}

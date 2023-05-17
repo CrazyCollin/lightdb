@@ -40,123 +40,61 @@ mod tests {
     use crate::data::log_record::LogRecordPos;
     use crate::index::btree::BTreeIndex;
     use crate::index::Indexer;
-    use std::ops::Index;
 
     #[test]
     fn test_put() {
         let btree_index = BTreeIndex::new();
 
-        let put_res1 = btree_index.put(
-            "test-1".as_bytes().to_vec(),
-            LogRecordPos {
-                file_id: 0,
-                offset: 10,
-            },
-        );
-        assert!(put_res1);
+        let test_data = vec![
+            ("test-1".into(), LogRecordPos { file_id: 0, offset: 10 }),
+            ("test-2".into(), LogRecordPos { file_id: 0, offset: 20 }),
+            ("test-3".into(), LogRecordPos { file_id: 0, offset: 30 }),
+        ];
 
-        let put_res2 = btree_index.put(
-            "test-2".as_bytes().to_vec(),
-            LogRecordPos {
-                file_id: 0,
-                offset: 20,
-            },
-        );
-        assert!(put_res2);
+        for item in test_data.into_iter() {
+            let put_res= btree_index.put(item.0, item.1);
+            assert!(put_res);
+        }
 
-        let put_res3 = btree_index.put(
-            "test-3".as_bytes().to_vec(),
-            LogRecordPos {
-                file_id: 0,
-                offset: 30,
-            },
-        );
-        assert!(put_res3);
     }
 
     #[test]
     fn test_get() {
         let btree_index = BTreeIndex::new();
 
-        let put_res1 = btree_index.put(
-            "test-1".into(),
-            LogRecordPos {
-                file_id: 0,
-                offset: 10,
-            },
-        );
-        assert!(put_res1);
+        let test_data=vec![
+            ("test-1".as_bytes().to_vec(), LogRecordPos { file_id: 0, offset: 10 }),
+            ("test-2".as_bytes().to_vec(), LogRecordPos { file_id: 0, offset: 20 }),
+            ("test-3".as_bytes().to_vec(), LogRecordPos { file_id: 0, offset: 30 }),
+        ];
 
-        let put_res2 = btree_index.put(
-            "test-2".into(),
-            LogRecordPos {
-                file_id: 0,
-                offset: 20,
-            },
-        );
-        assert!(put_res2);
+        for item in test_data.into_iter() {
+            let put_res= btree_index.put(item.0.clone(), item.1);
+            assert!(put_res);
+            let get_res = btree_index.get(item.0);
+            assert!(get_res.is_some());
+            assert_eq!(get_res.unwrap().offset, item.1.offset);
+            assert_eq!(get_res.unwrap().file_id, item.1.file_id);
+        }
 
-        let put_res3 = btree_index.put(
-            "test-3".into(),
-            LogRecordPos {
-                file_id: 0,
-                offset: 30,
-            },
-        );
-        assert!(put_res3);
-
-        let get_res1 = btree_index.get("test-1".into());
-        assert!(get_res1.is_some());
-        assert_eq!(get_res1.unwrap().offset, 10);
-        assert_eq!(get_res1.unwrap().file_id, 0);
-
-        let get_res2 = btree_index.get("test-2".into());
-        assert!(get_res2.is_some());
-        assert_eq!(get_res2.unwrap().offset, 20);
-        assert_eq!(get_res2.unwrap().file_id, 0);
-
-        let get_res3 = btree_index.get("test-3".into());
-        assert!(get_res3.is_some());
-        assert_eq!(get_res3.unwrap().offset, 30);
-        assert_eq!(get_res3.unwrap().file_id, 0);
     }
 
     #[test]
     fn test_delete() {
         let btree_index = BTreeIndex::new();
 
-        let put_res1 = btree_index.put(
-            "test-1".into(),
-            LogRecordPos {
-                file_id: 0,
-                offset: 10,
-            },
-        );
-        assert!(put_res1);
+        let test_data=vec![
+            ("test-1".as_bytes().to_vec(), LogRecordPos { file_id: 0, offset: 10 }),
+            ("test-2".as_bytes().to_vec(), LogRecordPos { file_id: 0, offset: 20 }),
+            ("test-3".as_bytes().to_vec(), LogRecordPos { file_id: 0, offset: 30 }),
+        ];
 
-        let put_res2 = btree_index.put(
-            "test-2".into(),
-            LogRecordPos {
-                file_id: 0,
-                offset: 20,
-            },
-        );
-        assert!(put_res2);
+        for item in test_data.into_iter() {
+            let put_res= btree_index.put(item.0.clone(), item.1);
+            assert!(put_res);
+            let del_res = btree_index.delete(item.0);
+            assert!(del_res);
+        }
 
-        let put_res3 = btree_index.put(
-            "test-3".into(),
-            LogRecordPos {
-                file_id: 0,
-                offset: 30,
-            },
-        );
-        assert!(put_res3);
-
-        let del_res1 = btree_index.delete("test-1".into());
-        assert!(del_res1);
-        let del_res2 = btree_index.delete("test-2".into());
-        assert!(del_res2);
-        let del_res2 = btree_index.delete("test-3".into());
-        assert!(del_res2);
     }
 }
