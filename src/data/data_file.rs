@@ -36,10 +36,10 @@ impl DataFile {
     pub fn new_hint_file(path:PathBuf) -> Result<Self> {
         let file_name=path.join(HINT_FILE_NAME_SUFFIX);
         let io_manager=new_io_manager(file_name)?;
-        Ok(Self { 
-            file_id: Arc::new(RwLock::new(0)), 
-            offset: Arc::new(RwLock::new(0)), 
-            io_manager: Box::new(io_manager), 
+        Ok(Self {
+            file_id: Arc::new(RwLock::new(0)),
+            offset: Arc::new(RwLock::new(0)),
+            io_manager: Box::new(io_manager),
         })
     }
 
