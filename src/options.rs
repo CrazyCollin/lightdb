@@ -60,3 +60,9 @@ pub enum NetworkType{
     Tcp,
     Quic,
 }
+
+#[derive(Copy, Clone)]
+pub enum IOType{
+    StdIO,
+    MmapIO,
+}

@@ -14,6 +14,9 @@ pub enum Errors {
 
     #[error("failed to open file")]
     OpenFileError,
+    
+    #[error("read file eof error")]
+    ReadFileEOF,
 
     #[error("database path is empty")]
     PathEmpty,

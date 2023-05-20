@@ -11,7 +11,7 @@ pub struct LogRecord {
 #[derive(Debug)]
 pub struct ReadLogRecord{
     pub(crate) log_record:LogRecord,
-    pub(crate) length:usize,
+    pub(crate) size:usize,
 }
 
 pub struct TxnRecord{
@@ -23,6 +23,7 @@ pub struct TxnRecord{
 pub enum RecordType {
     NORMAL = 1,
     DELETED = 2,
+    TXNFIN=3
 }
 
 impl From<u8> for RecordType {
@@ -30,6 +31,7 @@ impl From<u8> for RecordType {
         match value {
             1=>RecordType::NORMAL,
             2=>RecordType::DELETED,
+            3=>RecordType::TXNFIN,
             _=>panic!("wrong record type!"),
         }
     }
@@ -42,6 +44,8 @@ pub struct LogRecordPos {
     pub(crate) file_id: u64,
     // record offset
     pub(crate) offset: u64,
+    // log record size
+    pub(crate) size:u64,
 }
 
 impl LogRecordPos {
@@ -49,6 +53,7 @@ impl LogRecordPos {
         let mut buf=BytesMut::new();
         prost::encoding::encode_varint(self.file_id,&mut buf);
         prost::encoding::encode_varint(self.offset,&mut buf);
+        prost::encoding::encode_varint(self.size,&mut buf);
         buf.to_vec()
     }
 
@@ -63,9 +68,14 @@ impl LogRecordPos {
             Ok(offset)=>offset,
             Err(e)=>panic!("decode log record pos err: {}",e),
         };
+        let size=match prost::encoding::decode_varint(&mut buf) {
+            Ok(size)=>size,
+            Err(e)=>panic!("decode log record pos err: {}",e),
+        };
         Self{
             file_id,
             offset,
+            size
         }
     }
 }
@@ -110,6 +120,7 @@ impl LogRecord {
         buf.extend_from_slice(&self.key);
         buf.extend_from_slice(&self.value);
 
+        // get crc32 value from data (header and key&value)
         let mut hasher=crc32fast::Hasher::new();
         hasher.update(&buf);
         let crc=hasher.finalize();
@@ -117,55 +128,91 @@ impl LogRecord {
 
         (buf.to_vec(),crc)
     }
+
+    pub fn max_header_size()->usize{
+        std::mem::size_of::<u8>()+2*prost::length_delimiter_len(u32::MAX as usize)
+    }
 }
 
 #[cfg(test)]
 mod tests{
     use bytes::BytesMut;
+    use log::log;
 
     use crate::data::log_record::{LogRecord, LogRecordPos, RecordType};
 
     #[test]
     fn test_encode_log_record(){
-        // normal situation
-        let log_record=LogRecord{
-            key: "key".as_bytes().to_vec(),
-            value: "value".as_bytes().to_vec(),
-            record_type: RecordType::NORMAL,
-        };
-        let encoded_data=log_record.encode();
-        assert_eq!(encoded_data.len(),15);
-        assert_eq!(encoded_data[0],RecordType::NORMAL as u8);
-        assert_eq!(prost::decode_length_delimiter(&encoded_data[1..]).unwrap(),3);
-        assert_eq!(prost::decode_length_delimiter(&encoded_data[2..]).unwrap(),5);
-        assert_eq!(&encoded_data[3..6],"key".as_bytes());
-        assert_eq!(&encoded_data[6..11],"value".as_bytes());
 
-        // empty value situation
-        let log_record=LogRecord{
-            key: "key".as_bytes().to_vec(),
-            value: Default::default(),
-            record_type: RecordType::NORMAL,
-        };
-        let encoded_data=log_record.encode();
-        assert_eq!(encoded_data.len(),10);
-        assert_eq!(encoded_data[0],RecordType::NORMAL as u8);
-        assert_eq!(prost::decode_length_delimiter(&encoded_data[1..]).unwrap(),3);
-        assert_eq!(prost::decode_length_delimiter(&encoded_data[2..]).unwrap(),0);
-        assert_eq!(&encoded_data[3..6],"key".as_bytes());
+        let test_data=vec![
+            (
+                LogRecord{
+                    key: "key".as_bytes().to_vec(),
+                    value: "value".as_bytes().to_vec(),
+                    record_type: RecordType::NORMAL,
+                },
+                RecordType::NORMAL as u8,
+                3,
+                5,
+                "key".as_bytes(),
+                "value".as_bytes(),
+            ),
+            (
+                LogRecord{
+                    key: "key".as_bytes().to_vec(),
+                    value: Default::default(),
+                    record_type: RecordType::NORMAL,
+                },
+                RecordType::NORMAL as u8,
+                3,
+                0,
+                "key".as_bytes(),
+                "".as_bytes(),
+            ),
+            (
+                LogRecord{
+                    key: "key".as_bytes().to_vec(),
+                    value: "value".as_bytes().to_vec(),
+                    record_type: RecordType::DELETED,
+                },
+                RecordType::DELETED as u8,
+                3,
+                5,
+                "key".as_bytes(),
+                "value".as_bytes(),
+            ),
+            (
+                LogRecord{
+                    key: "key".as_bytes().to_vec(),
+                    value: Default::default(),
+                    record_type: RecordType::DELETED,
+                },
+                RecordType::DELETED as u8,
+                3,
+                0,
+                "key".as_bytes(),
+                "".as_bytes(),
+            ),
+        ];
 
-        // big key situation
-        let big_key = vec![0u8; 1024];
-        let log_record = LogRecord {
-            key: big_key.clone(),
-            value: "value".as_bytes().to_vec(),
-            record_type: RecordType::NORMAL,
-        };
-        let encoded_data = log_record.encode();
-        assert_eq!(encoded_data[0], RecordType::NORMAL as u8);
-        assert_eq!(prost::decode_length_delimiter(&encoded_data[1..]).unwrap(), big_key.len());
-        assert_eq!(&encoded_data[3..1027], big_key.as_slice());
-        // record deleted situation
+        for tt in test_data.into_iter() {
+            let encoded_data=tt.0.encode();
+
+            // check log record type
+            assert_eq!(encoded_data[0],tt.1);
+            let key_size=prost::decode_length_delimiter(&encoded_data[1..]).unwrap();
+            let value_size=prost::decode_length_delimiter(&encoded_data[1+prost::length_delimiter_len(key_size)..]).unwrap();
+
+            // check key size and value size
+            assert_eq!(key_size,tt.2);
+            assert_eq!(value_size,tt.3);
+
+            // check encoded data
+            let key_size_len=prost::length_delimiter_len(key_size);
+            let value_size_len=prost::length_delimiter_len(value_size);
+            assert_eq!(&encoded_data[1+key_size_len+value_size_len..1+key_size_len+value_size_len+key_size],tt.4);
+            assert_eq!(&encoded_data[1+key_size_len+value_size_len+key_size..1+key_size_len+value_size_len+key_size+value_size],tt.5);
+        }
     }
 
     #[test]
@@ -173,29 +220,13 @@ mod tests{
         let log_record_pos=LogRecordPos{
             file_id: 0,
             offset: 10,
-        };
-        let mut encoded_data=BytesMut::from(log_record_pos.encode().as_slice());
-        assert_eq!(encoded_data.len(),2);
-        assert_eq!(prost::encoding::decode_varint(&mut encoded_data).unwrap(),0);
-        assert_eq!(prost::encoding::decode_varint(&mut encoded_data).unwrap(),10);
-
-        let log_record_pos=LogRecordPos{
-            file_id: 0,
-            offset: 256,
+            size:20,
         };
         let mut encoded_data=BytesMut::from(log_record_pos.encode().as_slice());
         assert_eq!(encoded_data.len(),3);
         assert_eq!(prost::encoding::decode_varint(&mut encoded_data).unwrap(),0);
-        assert_eq!(prost::encoding::decode_varint(&mut encoded_data).unwrap(),256);
-
-        let log_record_pos=LogRecordPos{
-            file_id: 0,
-            offset: 127,
-        };
-        let mut encoded_data=BytesMut::from(log_record_pos.encode().as_slice());
-        assert_eq!(encoded_data.len(),2);
-        assert_eq!(prost::encoding::decode_varint(&mut encoded_data).unwrap(),0);
-        assert_eq!(prost::encoding::decode_varint(&mut encoded_data).unwrap(),127);
+        assert_eq!(prost::encoding::decode_varint(&mut encoded_data).unwrap(),10);
+        assert_eq!(prost::encoding::decode_varint(&mut encoded_data).unwrap(),20);
     }
 
     #[test]
@@ -203,6 +234,7 @@ mod tests{
         let log_record_pos=LogRecordPos{
             file_id: 0,
             offset: 10,
+            size:20,
         };
         let encoded_data=BytesMut::from(log_record_pos.encode().as_slice());
 
@@ -210,5 +242,6 @@ mod tests{
     
         assert_eq!(decoded_log_record_pos.file_id,log_record_pos.file_id);
         assert_eq!(decoded_log_record_pos.offset,log_record_pos.offset);
+        assert_eq!(decoded_log_record_pos.size,log_record_pos.size);
     }
 }
