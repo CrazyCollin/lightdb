@@ -3,7 +3,7 @@ use crate::Result;
 use parking_lot::RwLock;
 use std::path::PathBuf;
 use std::sync::Arc;
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
 use crate::data::log_record::{ReadLogRecord, RecordType};
 use crate::errors::Errors;
 use crate::options::IOType;
@@ -12,6 +12,8 @@ use super::log_record::LogRecord;
 
 pub const DATA_FILE_NAME_SUFFIX: &str = ".data";
 pub const HINT_FILE_NAME_SUFFIX:&str="_hint_file";
+pub const MERGE_FINISHED_FILE_NAME_SUFFIX:&str="_merged_finished_file";
+pub const TXN_SEQ_FILE_NAME_SUFFIX:&str="_txn_seq_file";
 
 /// DataFile use to manage a file which store log record
 pub struct DataFile {
@@ -48,6 +50,28 @@ impl DataFile {
         })
     }
 
+    // create a merge finished file
+    pub fn new_merge_fin_file(path:PathBuf)->Result<Self>{
+        let file_name=path.join(MERGE_FINISHED_FILE_NAME_SUFFIX);
+        let io_manager=new_io_manager(file_name,IOType::StdIO)?;
+        Ok(Self{
+            file_id:Arc::new(RwLock::new(0)),
+            offset:Arc::new(RwLock::new(0)),
+            io_manager,
+        })
+    }
+
+    // create a txn seq file
+    pub fn new_txn_seq_file(path:PathBuf)->Result<Self>{
+        let file_name=path.join(TXN_SEQ_FILE_NAME_SUFFIX);
+        let io_manager=new_io_manager(file_name,IOType::StdIO)?;
+        Ok(Self{
+            file_id:Arc::new(RwLock::new(0)),
+            offset:Arc::new(RwLock::new(0)),
+            io_manager,
+        })
+    }
+
     pub fn get_offset(&self)->u64{
         let read_guard=self.offset.read();
         *read_guard
@@ -61,6 +85,10 @@ impl DataFile {
     pub fn get_file_id(&self)->u64{
         let read_guard=self.file_id.read();
         *read_guard
+    }
+
+    pub fn get_data_file_size(&self)->u64{
+        self.io_manager.size()
     }
 }
 
@@ -102,6 +130,13 @@ impl DataFile {
             record_type,
         };
 
+        // check crc value
+        body_buf.advance(key_size+value_size);
+        let crc_value=body_buf.get_u32();
+        if crc_value!=log_record.get_crc() {
+            return Err(Errors::CrcCheckError);
+        }
+
         Ok(ReadLogRecord{
             size: header_size+body_buf.len(),
             log_record,
@@ -127,7 +162,7 @@ fn new_file_name(path:PathBuf,file_id:u64)->PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use crate::data::data_file::DataFile;
+    use crate::data::data_file::{DataFile, new_file_name};
     use crate::data::log_record::{LogRecord, RecordType};
     use crate::options::IOType;
 
@@ -150,7 +185,9 @@ mod tests {
 
     #[test]
     fn test_read_log_record_from_data_file(){
-        let data_file=DataFile::new(std::env::temp_dir(),0,IOType::StdIO).unwrap();
+        let temp_path=std::env::temp_dir();
+        let data_file=DataFile::new(temp_path.clone(),0,IOType::StdIO).unwrap();
+        println!("{}",temp_path.to_str().unwrap());
         let log_record=LogRecord{
             key: "key".into(),
             value: "value".into(),
@@ -162,5 +199,6 @@ mod tests {
 
         let read_log_record=data_file.read_log_record(0);
         println!("{:?}",read_log_record.unwrap());
+        std::fs::remove_file(new_file_name(temp_path,0)).unwrap()
     }
 }

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use log::error;
 use memmap2::Mmap;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::{RwLock};
 use crate::errors::Errors;
 use crate::fio::IOManager;
 use crate::Result;
