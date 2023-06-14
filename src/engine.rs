@@ -1,9 +1,9 @@
-use crate::data::data_file::DataFile;
+use crate::data::data_file::{DataFile,HINT_FILE_NAME_SUFFIX, self};
 use crate::data::log_record::{LogRecord, LogRecordPos, RecordType};
 use crate::errors::Errors;
 use crate::index::{Index, IndexIterator};
 use crate::options::{IteratorOptions, Options,WriteBatchOptions, IOType};
-use crate::Result;
+use crate::{Result, data};
 use bytes::Bytes;
 use parking_lot::{RwLock, Mutex};
 use std::collections::HashMap;
@@ -21,6 +21,8 @@ pub struct Engine {
     pub(crate) index: Box<dyn Index>,
 
     pub(crate) txn_id:Arc<AtomicUsize>,
+
+    compact_lock:Mutex<()>,
 
     file_lock:File,
     written_bytes:Arc<AtomicUsize>,
@@ -188,7 +190,46 @@ impl Engine {
 
 // compaction related
 impl Engine {
+    pub fn compact(&self)->Result<()> {
 
+        // check compact status
+        let lock=self.compact_lock.try_lock();
+        if lock.is_none() {
+            return Err(Errors::ProcessCompactError);
+        }
+        todo!();
+        
+        Ok(())
+    }
+
+    pub fn load_index_from_hint_file(&self)->Result<()>{
+        let hint_file_path=self.options.path.clone().join(data_file::HINT_FILE_NAME_SUFFIX);
+        if !hint_file_path.is_file() {
+            return Ok(());
+        }
+
+        let hint_file=DataFile::new_hint_file(hint_file_path)?;
+        let mut read_offset=0;
+        loop {
+             let (log_record,size)=match hint_file.read_log_record(read_offset) {
+                 Ok(read_log_record)=>{
+                    (read_log_record.log_record,read_log_record.size)
+                 },
+                 Err(e)=>{
+                    if e==Errors::ReadFileEOF{
+                      break;  
+                    }
+                    return Err(e);
+                 },
+             };
+
+             let log_record_pos=LogRecordPos::decode(log_record.value);
+             self.index.put(log_record.key, log_record_pos);
+             read_offset+=size as u64;
+        }
+
+        Ok(())
+    }
 }
 
 pub struct Iterator<'a> {
@@ -301,10 +342,14 @@ impl Engine {
 mod engine_tests {
 
     #[test]
-    fn test_open_db() {}
+    fn test_open_db() {
+
+    }
 
     #[test]
-    fn test_close_db() {}
+    fn test_close_db() {
+
+    }
 
     #[test]
     fn test_get(){}

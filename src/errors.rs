@@ -1,7 +1,7 @@
 use std::result;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug,PartialEq)]
 pub enum Errors {
     #[error("failed to read data file")]
     ReadFileError,
@@ -38,6 +38,9 @@ pub enum Errors {
 
     #[error("update index error")]
     IndexUpdateError,
+
+    #[error("multiple compaction process")]
+    ProcessCompactError,
 }
 
 pub type Result<T> = result::Result<T, Errors>;

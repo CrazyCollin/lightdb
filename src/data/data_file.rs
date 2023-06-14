@@ -11,7 +11,7 @@ use crate::options::IOType;
 use super::log_record::{LogRecord, LogRecordPos};
 
 const DATA_FILE_NAME_SUFFIX: &str = ".data";
-const HINT_FILE_NAME_SUFFIX:&str="_hint_file";
+pub const HINT_FILE_NAME_SUFFIX:&str="_hint_file";
 const MERGE_FINISHED_FILE_NAME_SUFFIX:&str="_merged_finished_file";
 const TXN_SEQ_FILE_NAME_SUFFIX:&str="_txn_seq_file";
 
