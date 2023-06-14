@@ -14,6 +14,9 @@ pub struct Options {
 
     // index type
     pub index_type: IndexType,
+
+    // sync write bytes size threshold
+    pub sync_bytes_write: usize,
 }
 
 #[derive(Clone)]
@@ -30,6 +33,7 @@ impl Default for Options {
             data_file_size: 256 * 1024 * 1024,
             sync_write: false,
             index_type: IndexType::BTree,
+            sync_bytes_write:0, 
         }
     }
 }
@@ -37,6 +41,17 @@ impl Default for Options {
 pub struct IteratorOptions{
     pub prefix:Vec<u8>,
     pub reverse:bool,
+}
+
+impl Default for IteratorOptions {
+    fn default() -> Self {
+        Self { prefix: Default::default(), reverse: Default::default() }
+    }
+}
+
+pub struct WriteBatchOptions{
+    pub max_batch_size:usize,
+    pub sync:bool,
 }
 
 #[derive(Clone,Debug,Serialize,Deserialize,PartialEq)]

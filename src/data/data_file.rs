@@ -8,12 +8,12 @@ use crate::data::log_record::{ReadLogRecord, RecordType};
 use crate::errors::Errors;
 use crate::options::IOType;
 
-use super::log_record::LogRecord;
+use super::log_record::{LogRecord, LogRecordPos};
 
-pub const DATA_FILE_NAME_SUFFIX: &str = ".data";
-pub const HINT_FILE_NAME_SUFFIX:&str="_hint_file";
-pub const MERGE_FINISHED_FILE_NAME_SUFFIX:&str="_merged_finished_file";
-pub const TXN_SEQ_FILE_NAME_SUFFIX:&str="_txn_seq_file";
+const DATA_FILE_NAME_SUFFIX: &str = ".data";
+const HINT_FILE_NAME_SUFFIX:&str="_hint_file";
+const MERGE_FINISHED_FILE_NAME_SUFFIX:&str="_merged_finished_file";
+const TXN_SEQ_FILE_NAME_SUFFIX:&str="_txn_seq_file";
 
 /// DataFile use to manage a file which store log record
 pub struct DataFile {
@@ -32,6 +32,7 @@ impl DataFile {
     pub fn new(path: PathBuf, file_id: u64,io_type:IOType) -> Result<Self> {
         let file_name = new_file_name(path, file_id);
         let io_manager = new_io_manager(file_name,io_type)?;
+
         Ok(Self {
             file_id: Arc::new(RwLock::new(file_id)),
             offset: Arc::new(RwLock::new(0)),
@@ -43,6 +44,7 @@ impl DataFile {
     pub fn new_hint_file(path:PathBuf) -> Result<Self> {
         let file_name=path.join(HINT_FILE_NAME_SUFFIX);
         let io_manager=new_io_manager(file_name,IOType::StdIO)?;
+
         Ok(Self {
             file_id: Arc::new(RwLock::new(0)),
             offset: Arc::new(RwLock::new(0)),
@@ -54,6 +56,7 @@ impl DataFile {
     pub fn new_merge_fin_file(path:PathBuf)->Result<Self>{
         let file_name=path.join(MERGE_FINISHED_FILE_NAME_SUFFIX);
         let io_manager=new_io_manager(file_name,IOType::StdIO)?;
+
         Ok(Self{
             file_id:Arc::new(RwLock::new(0)),
             offset:Arc::new(RwLock::new(0)),
@@ -65,6 +68,7 @@ impl DataFile {
     pub fn new_txn_seq_file(path:PathBuf)->Result<Self>{
         let file_name=path.join(TXN_SEQ_FILE_NAME_SUFFIX);
         let io_manager=new_io_manager(file_name,IOType::StdIO)?;
+
         Ok(Self{
             file_id:Arc::new(RwLock::new(0)),
             offset:Arc::new(RwLock::new(0)),
@@ -89,6 +93,10 @@ impl DataFile {
 
     pub fn get_data_file_size(&self)->u64{
         self.io_manager.size()
+    }
+
+    pub fn set_io_manager(&mut self,io_manager:Box<dyn IOManager>){
+        self.io_manager=io_manager;
     }
 }
 
@@ -148,6 +156,16 @@ impl DataFile {
         let current_offset=self.get_offset();
         self.set_offset(current_offset+write_size as u64);
         Ok(write_size)
+    }
+
+    pub fn write_hint_log(&self,key:Vec<u8>,pos:LogRecordPos)->Result<()>{
+        let hint_log_record=LogRecord{
+            key,
+            value:pos.encode(),
+            record_type:RecordType::NORMAL,
+        };
+        self.io_manager.write(&hint_log_record.encode())?;
+        Ok(())
     }
 
     pub fn sync(&self)->Result<()> {
