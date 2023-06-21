@@ -1,9 +1,6 @@
-mod clients;
-mod cmd;
 mod data;
 mod fio;
 mod index;
-mod server;
 
 
 mod errors;
