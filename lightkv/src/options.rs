@@ -29,7 +29,7 @@ pub enum IndexType {
 impl Default for Options {
     fn default() -> Self {
         Self {
-            path: std::env::temp_dir().join("lightkv"),
+            path: std::env::temp_dir().join(".."),
             data_file_size: 256 * 1024 * 1024,
             sync_write: false,
             index_type: IndexType::BTree,
