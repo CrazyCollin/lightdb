@@ -1,7 +1,7 @@
-# lightkv
+# lightdb
 
 ## Introduction
-LightKV is a distributed key-value storage system written in Rust. It is designed to be a high performance, reliable and easy to use key-value storage system, compatible with Time Series Data. Currently, it is still under development.
+LightDB is a distributed key-value storage system written in Rust. It is designed to be a high performance, reliable and easy to use key-value storage system, compatible with Time Series Data. Currently, it is still under development.
 
 ## Architecture
 Embedded KV storage engine (which manage data storage and memory index) is integrated with other functional modules,
@@ -29,7 +29,7 @@ separated into several parts as follows:
 
 - Pure LSM tree storage engine support
 
-- Integration with Apache OpenDAL, with cloud stoarge access support
+- Integration with Apache OpenDAL, with cloud storage access support
 
 ## References
 
